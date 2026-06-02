@@ -6,9 +6,11 @@ partial class Form1
     private Panel connectionPanel = null!;
     private TableLayoutPanel connectionLayout = null!;
     private Label hostLabel = null!;
+    private Label savedConnectionLabel = null!;
     private Label tenantIdLabel = null!;
     private Label clientIdLabel = null!;
     private Label clientSecretLabel = null!;
+    private ComboBox savedConnectionsComboBox = null!;
     private TextBox hostTextBox = null!;
     private TextBox tenantIdTextBox = null!;
     private TextBox clientIdTextBox = null!;
@@ -36,10 +38,12 @@ partial class Form1
         components = new System.ComponentModel.Container();
         connectionPanel = new Panel();
         connectionLayout = new TableLayoutPanel();
+        savedConnectionLabel = new Label();
         hostLabel = new Label();
         tenantIdLabel = new Label();
         clientIdLabel = new Label();
         clientSecretLabel = new Label();
+        savedConnectionsComboBox = new ComboBox();
         hostTextBox = new TextBox();
         tenantIdTextBox = new TextBox();
         clientIdTextBox = new TextBox();
@@ -66,7 +70,7 @@ partial class Form1
         StartPosition = FormStartPosition.CenterScreen;
 
         connectionPanel.Dock = DockStyle.Top;
-        connectionPanel.Height = 150;
+        connectionPanel.Height = 190;
         connectionPanel.Padding = new Padding(12);
         connectionPanel.Controls.Add(connectionLayout);
 
@@ -74,7 +78,8 @@ partial class Form1
         connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130F));
         connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140F));
-        connectionLayout.RowCount = 4;
+        connectionLayout.RowCount = 5;
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
@@ -82,6 +87,10 @@ partial class Form1
         connectionLayout.Dock = DockStyle.Fill;
         connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         connectionLayout.Padding = new Padding(0);
+
+        savedConnectionLabel.Text = "Saved Connection";
+        savedConnectionLabel.Dock = DockStyle.Fill;
+        savedConnectionLabel.TextAlign = ContentAlignment.MiddleLeft;
 
         hostLabel.Text = "Databricks Host";
         hostLabel.Dock = DockStyle.Fill;
@@ -98,6 +107,12 @@ partial class Form1
         clientSecretLabel.Text = "Client Secret";
         clientSecretLabel.Dock = DockStyle.Fill;
         clientSecretLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+        savedConnectionsComboBox.Dock = DockStyle.Fill;
+        savedConnectionsComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        savedConnectionsComboBox.FormattingEnabled = true;
+        savedConnectionsComboBox.Name = "savedConnectionsComboBox";
+        savedConnectionsComboBox.SelectedIndexChanged += SavedConnectionsComboBox_SelectedIndexChanged;
 
         hostTextBox.Dock = DockStyle.Fill;
         hostTextBox.Name = "hostTextBox";
@@ -118,16 +133,18 @@ partial class Form1
         connectButton.Height = 120;
         connectButton.Click += ConnectButton_Click;
 
-        connectionLayout.Controls.Add(hostLabel, 0, 0);
-        connectionLayout.Controls.Add(hostTextBox, 1, 0);
+        connectionLayout.Controls.Add(savedConnectionLabel, 0, 0);
+        connectionLayout.Controls.Add(savedConnectionsComboBox, 1, 0);
+        connectionLayout.Controls.Add(hostLabel, 0, 1);
+        connectionLayout.Controls.Add(hostTextBox, 1, 1);
         connectionLayout.Controls.Add(connectButton, 2, 0);
-        connectionLayout.SetRowSpan(connectButton, 4);
-        connectionLayout.Controls.Add(tenantIdLabel, 0, 1);
-        connectionLayout.Controls.Add(tenantIdTextBox, 1, 1);
-        connectionLayout.Controls.Add(clientIdLabel, 0, 2);
-        connectionLayout.Controls.Add(clientIdTextBox, 1, 2);
-        connectionLayout.Controls.Add(clientSecretLabel, 0, 3);
-        connectionLayout.Controls.Add(clientSecretTextBox, 1, 3);
+        connectionLayout.SetRowSpan(connectButton, 5);
+        connectionLayout.Controls.Add(tenantIdLabel, 0, 2);
+        connectionLayout.Controls.Add(tenantIdTextBox, 1, 2);
+        connectionLayout.Controls.Add(clientIdLabel, 0, 3);
+        connectionLayout.Controls.Add(clientIdTextBox, 1, 3);
+        connectionLayout.Controls.Add(clientSecretLabel, 0, 4);
+        connectionLayout.Controls.Add(clientSecretTextBox, 1, 4);
 
         mainSplitContainer.Dock = DockStyle.Fill;
         mainSplitContainer.Orientation = Orientation.Vertical;

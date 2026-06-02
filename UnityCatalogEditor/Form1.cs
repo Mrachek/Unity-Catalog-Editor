@@ -1,16 +1,21 @@
 using Databricks.Sdk;
 using System.ComponentModel;
+using System.Security.Cryptography;
 
 namespace UnityCatalogEditor;
 
 public partial class Form1 : Form
 {
+    private readonly ConnectionStore connectionStore = new();
+    private readonly List<SavedConnection> savedConnections = [];
     private WorkspaceClient? workspaceClient;
     private bool isLoading;
+    private bool isPopulatingSavedConnections;
 
     public Form1()
     {
         InitializeComponent();
+        LoadSavedConnections();
     }
 
     private async void ConnectButton_Click(object sender, EventArgs e)
@@ -55,7 +60,26 @@ public partial class Form1 : Form
             workspaceClient = candidateClient;
             candidateClient = null;
 
-            AppendLog("Connection established.");
+            var defaultConnectionName = (savedConnectionsComboBox.SelectedItem as SavedConnection)?.Name ?? host;
+            var connectionName = PromptForConnectionName(defaultConnectionName);
+            var savedConnection = SavedConnection.Create(connectionName, config);
+
+            try
+            {
+                connectionStore.Upsert(savedConnection);
+                LoadSavedConnections(savedConnection.Name);
+                AppendLog($"Connection established and saved as '{savedConnection.Name}'.");
+            }
+            catch (Exception saveEx)
+            {
+                AppendLog($"Connection established, but saving '{savedConnection.Name}' failed: {saveEx.Message}");
+                MessageBox.Show(
+                    $"The connection was established, but it could not be saved: {saveEx.Message}",
+                    "Saved Connection",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+
             await ReloadTreeAsync();
         }
         catch (Exception ex)
@@ -66,6 +90,155 @@ public partial class Form1 : Form
         finally
         {
             SetLoadingState(false);
+        }
+    }
+
+    private void LoadSavedConnections(string? selectedConnectionName = null)
+    {
+        SavedConnection? selectedConnection = null;
+        isPopulatingSavedConnections = true;
+        try
+        {
+            IReadOnlyList<SavedConnection> loadedConnections;
+            try
+            {
+                loadedConnections = connectionStore.LoadAll();
+            }
+            catch (Exception ex)
+            {
+                savedConnections.Clear();
+                savedConnectionsComboBox.Items.Clear();
+                ClearConnectionFields();
+                MessageBox.Show(
+                    $"Failed to load saved connections: {ex.Message}",
+                    "Saved Connections",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            savedConnections.Clear();
+            savedConnections.AddRange(loadedConnections);
+
+            savedConnectionsComboBox.BeginUpdate();
+            savedConnectionsComboBox.Items.Clear();
+
+            foreach (var savedConnection in savedConnections)
+            {
+                savedConnectionsComboBox.Items.Add(savedConnection);
+            }
+
+            if (savedConnections.Count == 0)
+            {
+                ClearConnectionFields();
+                savedConnectionsComboBox.SelectedIndex = -1;
+                return;
+            }
+
+            var selectedIndex = 0;
+            if (!string.IsNullOrWhiteSpace(selectedConnectionName))
+            {
+                var matchIndex = savedConnections.FindIndex(connection =>
+                    string.Equals(connection.Name, selectedConnectionName, StringComparison.OrdinalIgnoreCase));
+
+                if (matchIndex >= 0)
+                {
+                    selectedIndex = matchIndex;
+                }
+            }
+
+            savedConnectionsComboBox.SelectedIndex = selectedIndex;
+            selectedConnection = savedConnections[selectedIndex];
+        }
+        finally
+        {
+            savedConnectionsComboBox.EndUpdate();
+            isPopulatingSavedConnections = false;
+        }
+
+        if (selectedConnection is not null && ApplySavedConnection(selectedConnection))
+        {
+            AppendLog($"Loaded saved connection '{selectedConnection.Name}'.");
+        }
+    }
+
+    private void SavedConnectionsComboBox_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (isPopulatingSavedConnections)
+        {
+            return;
+        }
+
+        if (savedConnectionsComboBox.SelectedItem is SavedConnection savedConnection)
+        {
+            if (ApplySavedConnection(savedConnection))
+            {
+                AppendLog($"Loaded saved connection '{savedConnection.Name}'.");
+            }
+        }
+    }
+
+    private bool ApplySavedConnection(SavedConnection savedConnection)
+    {
+        hostTextBox.Text = savedConnection.Host;
+        tenantIdTextBox.Text = savedConnection.AzureTenantId;
+        clientIdTextBox.Text = savedConnection.ClientId;
+
+        try
+        {
+            clientSecretTextBox.Text = savedConnection.ClientSecret;
+            return true;
+        }
+        catch (CryptographicException)
+        {
+            clientSecretTextBox.Clear();
+            MessageBox.Show(
+                $"The secret for saved connection '{savedConnection.Name}' could not be decrypted.",
+                "Saved Connection",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return false;
+        }
+        catch (FormatException)
+        {
+            clientSecretTextBox.Clear();
+            MessageBox.Show(
+                $"The secret for saved connection '{savedConnection.Name}' could not be decrypted.",
+                "Saved Connection",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return false;
+        }
+    }
+
+    private void ClearConnectionFields()
+    {
+        hostTextBox.Clear();
+        tenantIdTextBox.Clear();
+        clientIdTextBox.Clear();
+        clientSecretTextBox.Clear();
+    }
+
+    private string PromptForConnectionName(string defaultName)
+    {
+        while (true)
+        {
+            var connectionName = PromptDialog.ShowDialog(
+                this,
+                "Save Connection",
+                "Name this connection:",
+                defaultName);
+
+            if (!string.IsNullOrWhiteSpace(connectionName))
+            {
+                return connectionName.Trim();
+            }
+
+            MessageBox.Show(
+                "A connection name is required to save this connection.",
+                "Validation",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
     }
 
@@ -277,6 +450,7 @@ public partial class Form1 : Form
     {
         isLoading = loading;
         connectButton.Enabled = !loading;
+        connectionPanel.Enabled = !loading;
         catalogTreeView.Enabled = !loading;
         Cursor = loading ? Cursors.WaitCursor : Cursors.Default;
     }
