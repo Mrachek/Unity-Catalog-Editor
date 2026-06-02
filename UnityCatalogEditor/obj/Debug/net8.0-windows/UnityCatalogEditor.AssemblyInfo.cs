@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("UnityCatalogEditor")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8613517cb3929de70f0e5a75c081e28452b5d2ee")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+db0187870e5502ac3e181a5b5d9abcb5b208e101")]
 [assembly: System.Reflection.AssemblyProductAttribute("UnityCatalogEditor")]
 [assembly: System.Reflection.AssemblyTitleAttribute("UnityCatalogEditor")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
