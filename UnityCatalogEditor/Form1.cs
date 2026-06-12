@@ -507,7 +507,7 @@ public partial class Form1 : Form
             $"Remove privileges from {selectedAssignment.Principal} on {target.DisplayName}.",
             target.AllowedPrivileges,
             principal: selectedAssignment.Principal,
-            selectedPrivileges: selectedAssignment.Privileges);
+            selectedPrivileges: selectedAssignment.Privileges.Select(privilege => privilege.Name).ToArray());
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
@@ -607,12 +607,15 @@ public partial class Form1 : Form
             {
                 var item = new ListViewItem(assignment.Principal)
                 {
-                    Tag = assignment
-                };
+                Tag = assignment
+            };
 
-                item.SubItems.Add(string.Join(", ", assignment.Privileges.OrderBy(privilege => privilege, StringComparer.OrdinalIgnoreCase)));
-                listView.Items.Add(item);
-            }
+            item.SubItems.Add(string.Join(", ", assignment.Privileges
+                .Select(privilege => privilege.Name)
+                .Where(privilege => !string.IsNullOrWhiteSpace(privilege))
+                .OrderBy(privilege => privilege, StringComparer.OrdinalIgnoreCase)));
+            listView.Items.Add(item);
+        }
 
             if (listView.Items.Count > 0)
             {

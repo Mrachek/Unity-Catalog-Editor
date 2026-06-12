@@ -241,7 +241,7 @@ public sealed class PrivilegeAssignmentInfo
     public string Principal { get; set; } = string.Empty;
 
     [JsonPropertyName("privileges")]
-    public List<string> Privileges { get; set; } = [];
+    public List<GrantedPrivilege> Privileges { get; set; } = [];
 }
 
 public sealed class PrivilegeChange
@@ -254,6 +254,49 @@ public sealed class PrivilegeChange
 
     [JsonPropertyName("remove")]
     public List<string>? Remove { get; set; }
+}
+
+[JsonConverter(typeof(GrantedPrivilegeJsonConverter))]
+public sealed record GrantedPrivilege(string Name);
+
+internal sealed class GrantedPrivilegeJsonConverter : JsonConverter<GrantedPrivilege>
+{
+    public override GrantedPrivilege? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            return new GrantedPrivilege(reader.GetString() ?? string.Empty);
+        }
+
+        if (reader.TokenType != JsonTokenType.StartObject)
+        {
+            throw new JsonException("Expected privilege string or object.");
+        }
+
+        using var document = JsonDocument.ParseValue(ref reader);
+        var root = document.RootElement;
+
+        if (root.TryGetProperty("privilege", out var privilegeElement) &&
+            privilegeElement.ValueKind == JsonValueKind.String)
+        {
+            return new GrantedPrivilege(privilegeElement.GetString() ?? string.Empty);
+        }
+
+        if (root.TryGetProperty("name", out var nameElement) &&
+            nameElement.ValueKind == JsonValueKind.String)
+        {
+            return new GrantedPrivilege(nameElement.GetString() ?? string.Empty);
+        }
+
+        return new GrantedPrivilege(string.Empty);
+    }
+
+    public override void Write(Utf8JsonWriter writer, GrantedPrivilege value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("privilege", value.Name);
+        writer.WriteEndObject();
+    }
 }
 
 internal sealed class CreateSchemaRequest
