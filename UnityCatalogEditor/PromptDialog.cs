@@ -4,7 +4,7 @@ internal sealed class PromptDialog : Form
 {
     private readonly TextBox inputTextBox;
 
-    private PromptDialog(string title, string prompt, string? initialText)
+    private PromptDialog(string title, string prompt, string? defaultText)
     {
         Text = title;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -37,9 +37,8 @@ internal sealed class PromptDialog : Form
             Dock = DockStyle.Top,
             Margin = new Padding(0),
             Width = 440,
-            Text = initialText ?? string.Empty
+            Text = defaultText ?? string.Empty
         };
-        Shown += (_, _) => inputTextBox.SelectAll();
 
         var buttonPanel = new FlowLayoutPanel
         {
@@ -77,9 +76,9 @@ internal sealed class PromptDialog : Form
         Controls.Add(layout);
     }
 
-    public static string? ShowDialog(IWin32Window owner, string title, string prompt, string? initialText = null)
+    public static string? ShowDialog(IWin32Window owner, string title, string prompt, string? defaultText = null)
     {
-        using var dialog = new PromptDialog(title, prompt, initialText);
+        using var dialog = new PromptDialog(title, prompt, defaultText);
         return dialog.ShowDialog(owner) == DialogResult.OK ? dialog.inputTextBox.Text : null;
     }
 }

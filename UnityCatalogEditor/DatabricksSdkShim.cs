@@ -27,6 +27,7 @@ public sealed class WorkspaceClient : IDisposable
         apiClient = new DatabricksApiClient(config);
         Catalogs = new CatalogsClient(apiClient);
         Schemas = new SchemasClient(apiClient);
+        Grants = new GrantsClient(apiClient);
         Tables = new TablesClient(apiClient);
         Volumes = new VolumesClient(apiClient);
     }
@@ -34,6 +35,8 @@ public sealed class WorkspaceClient : IDisposable
     public CatalogsClient Catalogs { get; }
 
     public SchemasClient Schemas { get; }
+
+    public GrantsClient Grants { get; }
 
     public TablesClient Tables { get; }
 
@@ -101,6 +104,48 @@ public sealed class SchemasClient(DatabricksApiClient apiClient)
             new Dictionary<string, string?>
             {
                 ["force"] = force ? "true" : null
+            },
+            cancellationToken);
+    }
+}
+
+public sealed class GrantsClient(DatabricksApiClient apiClient)
+{
+    public Task<IReadOnlyList<PrivilegeAssignmentInfo>> GetAsync(
+        string securableType,
+        string fullName,
+        CancellationToken cancellationToken = default)
+    {
+        return apiClient.ListAllAsync<PrivilegeAssignmentInfo>(
+            $"/api/2.1/unity-catalog/permissions/{Uri.EscapeDataString(securableType)}/{Uri.EscapeDataString(fullName)}",
+            "privilege_assignments",
+            null,
+            cancellationToken);
+    }
+
+    public Task<IReadOnlyList<PrivilegeAssignmentInfo>> GetEffectiveAsync(
+        string securableType,
+        string fullName,
+        CancellationToken cancellationToken = default)
+    {
+        return apiClient.ListAllAsync<PrivilegeAssignmentInfo>(
+            $"/api/2.1/unity-catalog/effective-permissions/{Uri.EscapeDataString(securableType)}/{Uri.EscapeDataString(fullName)}",
+            "privilege_assignments",
+            null,
+            cancellationToken);
+    }
+
+    public Task UpdateAsync(
+        string securableType,
+        string fullName,
+        IReadOnlyList<PrivilegeChange> changes,
+        CancellationToken cancellationToken = default)
+    {
+        return apiClient.PatchAsync(
+            $"/api/2.1/unity-catalog/permissions/{Uri.EscapeDataString(securableType)}/{Uri.EscapeDataString(fullName)}",
+            new UpdatePrivilegesRequest
+            {
+                Changes = changes.ToList()
             },
             cancellationToken);
     }
@@ -190,6 +235,27 @@ public sealed class VolumeInfo
     public string? VolumeType { get; set; }
 }
 
+public sealed class PrivilegeAssignmentInfo
+{
+    [JsonPropertyName("principal")]
+    public string Principal { get; set; } = string.Empty;
+
+    [JsonPropertyName("privileges")]
+    public List<string> Privileges { get; set; } = [];
+}
+
+public sealed class PrivilegeChange
+{
+    [JsonPropertyName("principal")]
+    public string Principal { get; set; } = string.Empty;
+
+    [JsonPropertyName("add")]
+    public List<string>? Add { get; set; }
+
+    [JsonPropertyName("remove")]
+    public List<string>? Remove { get; set; }
+}
+
 internal sealed class CreateSchemaRequest
 {
     [JsonPropertyName("name")]
@@ -199,12 +265,20 @@ internal sealed class CreateSchemaRequest
     public string CatalogName { get; set; } = string.Empty;
 }
 
+internal sealed class UpdatePrivilegesRequest
+{
+    [JsonPropertyName("changes")]
+    public List<PrivilegeChange> Changes { get; set; } = [];
+}
+
 public sealed class DatabricksApiClient : IDisposable
 {
+    private const int PageSize = 150;
     private const string DatabricksScope = "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default";
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     private readonly HttpClient httpClient;
@@ -246,7 +320,7 @@ public sealed class DatabricksApiClient : IDisposable
                 ? new Dictionary<string, string?>()
                 : new Dictionary<string, string?>(queryParameters);
 
-            pageQuery["max_results"] = "100";
+            pageQuery["max_results"] = PageSize.ToString();
             pageQuery["page_token"] = pageToken;
 
             var document = await GetJsonAsync(path, pageQuery, cancellationToken).ConfigureAwait(false);
@@ -277,6 +351,12 @@ public sealed class DatabricksApiClient : IDisposable
         where TBody : class
     {
         return SendAsync(HttpMethod.Post, path, null, body, cancellationToken);
+    }
+
+    public Task PatchAsync<TBody>(string path, TBody body, CancellationToken cancellationToken = default)
+        where TBody : class
+    {
+        return SendAsync(HttpMethod.Patch, path, null, body, cancellationToken);
     }
 
     public Task DeleteAsync(string path, IReadOnlyDictionary<string, string?>? queryParameters, CancellationToken cancellationToken = default)

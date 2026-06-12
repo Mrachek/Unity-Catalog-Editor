@@ -14,27 +14,42 @@ internal sealed class ConnectionStore
         WriteIndented = true
     };
 
-    private readonly string filePath;
+    private readonly string connectionsDirectory;
 
     public ConnectionStore()
     {
-        var folderPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "UnityCatalogEditor");
+        connectionsDirectory = AppContext.BaseDirectory.TrimEnd(
+            Path.DirectorySeparatorChar,
+            Path.AltDirectorySeparatorChar);
 
-        Directory.CreateDirectory(folderPath);
-        filePath = Path.Combine(folderPath, "saved-connections.json");
+        Directory.CreateDirectory(connectionsDirectory);
     }
 
     public IReadOnlyList<SavedConnection> LoadAll()
     {
-        if (!File.Exists(filePath))
+        if (!Directory.Exists(connectionsDirectory))
         {
             return [];
         }
 
-        var json = File.ReadAllText(filePath);
-        var connections = JsonSerializer.Deserialize<List<SavedConnection>>(json, JsonOptions) ?? [];
+        var connections = new List<SavedConnection>();
+        foreach (var filePath in Directory.EnumerateFiles(connectionsDirectory, "*.json"))
+        {
+            try
+            {
+                var json = File.ReadAllText(filePath);
+                var connection = JsonSerializer.Deserialize<SavedConnection>(json, JsonOptions);
+                if (connection is not null && !string.IsNullOrWhiteSpace(connection.Name))
+                {
+                    connections.Add(connection);
+                }
+            }
+            catch
+            {
+                // Ignore malformed or unreadable connection files and continue loading the rest.
+            }
+        }
+
         return connections
             .OrderByDescending(connection => connection.LastUsedUtc)
             .ThenBy(connection => connection.Name, StringComparer.OrdinalIgnoreCase)
@@ -43,23 +58,29 @@ internal sealed class ConnectionStore
 
     public void Upsert(SavedConnection savedConnection)
     {
-        var connections = LoadAll()
-            .Where(connection => !string.Equals(connection.Name, savedConnection.Name, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        connections.Add(savedConnection);
-        SaveAll(connections);
+        var filePath = GetFilePath(savedConnection.Name);
+        var json = JsonSerializer.Serialize(savedConnection, JsonOptions);
+        File.WriteAllText(filePath, json);
     }
 
-    private void SaveAll(IEnumerable<SavedConnection> connections)
+    public string GetFilePath(string connectionName)
     {
-        var orderedConnections = connections
-            .OrderByDescending(connection => connection.LastUsedUtc)
-            .ThenBy(connection => connection.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var safeName = SanitizeFileName(connectionName);
+        return Path.Combine(connectionsDirectory, $"{safeName}.json");
+    }
 
-        var json = JsonSerializer.Serialize(orderedConnections, JsonOptions);
-        File.WriteAllText(filePath, json);
+    private static string SanitizeFileName(string value)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var character in value.Trim())
+        {
+            builder.Append(invalidChars.Contains(character) ? '_' : character);
+        }
+
+        var safeName = builder.ToString().Trim();
+        return string.IsNullOrWhiteSpace(safeName) ? "connection" : safeName;
     }
 }
 
